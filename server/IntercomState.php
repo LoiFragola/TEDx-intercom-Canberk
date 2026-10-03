@@ -1,0 +1,21 @@
+<?php
+declare(strict_types=1);
+final class IntercomState{
+public const TALK_LIMIT=180,PARTICIPANT_TIMEOUT=18,REQUEST_TIMEOUT=60;
+public static function initialState():array{return['version'=>1,'channels'=>['main'=>['id'=>'main','name'=>'ANA KANAL','permanent'=>true,'createdAt'=>time(),'createdBy'=>'system','active'=>null,'requests'=>[]]],'participants'=>[]];}
+public static function cleanup(array &$s,int $now):void{$changed=false;foreach($s['participants'] as $id=>$p)if(($p['lastSeen']??0)<$now-self::PARTICIPANT_TIMEOUT){unset($s['participants'][$id]);$changed=true;}foreach($s['channels'] as &$c){if(($c['active']['expiresAt']??0)>0&&$c['active']['expiresAt']<=$now){$c['active']=null;$changed=true;}$n=count($c['requests']??[]);$c['requests']=array_values(array_filter($c['requests']??[],fn($r)=>($r['createdAt']??0)>$now-self::REQUEST_TIMEOUT));$changed=$changed||$n!==count($c['requests']);}unset($c);if($changed)self::bump($s);}
+public static function touch(array &$s,string $id,int $now):void{if(isset($s['participants'][$id]))$s['participants'][$id]['lastSeen']=$now;}
+public static function safeName(string $n):string{$n=trim(preg_replace('/\s+/u',' ',strip_tags($n))??'');$n=$n===''?'Ekip Üyesi':$n;return function_exists('mb_substr')?mb_substr($n,0,32):substr($n,0,32);}
+public static function channelExists(array $s,string $id):bool{return isset($s['channels'][$id]);}
+public static function channel(array $s,string $id):?array{return $s['channels'][$id]??null;}
+public static function participant(array $s,string $id):?array{return $s['participants'][$id]??null;}
+public static function upsertParticipant(array &$s,string $id,string $name,string $role,string $channel,int $now):void{$old=$s['participants'][$id]??[];$s['participants'][$id]=['sessionId'=>$id,'name'=>self::safeName($name),'role'=>$role==='admin'?'admin':'member','channelId'=>$channel,'lastSeen'=>$now,'joinedAt'=>$old['joinedAt']??$now];self::bump($s);}
+public static function startSpeaking(array $c,array $p,int $now):array{return['sessionId'=>$p['sessionId'],'name'=>$p['name'],'role'=>$p['role'],'startedAt'=>$now,'expiresAt'=>$now+self::TALK_LIMIT,'epoch'=>bin2hex(random_bytes(8))];}
+public static function stopSpeaking(array &$c):void{$c['active']=null;}
+public static function requestSpeak(array &$c,array $p,int $now):void{foreach($c['requests'] as $r)if(($r['sessionId']??'')===$p['sessionId'])return;$c['requests'][]=['id'=>bin2hex(random_bytes(6)),'sessionId'=>$p['sessionId'],'name'=>$p['name'],'role'=>$p['role'],'createdAt'=>$now];}
+public static function createChannel(array &$s,string $name,string $creator,int $now):array{$name=self::safeName($name);if($name==='Ekip Üyesi')return['ok'=>false,'error'=>'CHANNEL_NAME_REQUIRED'];$u=function_exists('mb_strtoupper')?mb_strtoupper($name):strtoupper($name);foreach($s['channels'] as $c){$x=function_exists('mb_strtoupper')?mb_strtoupper((string)$c['name']):strtoupper((string)$c['name']);if($x===$u)return['ok'=>false,'error'=>'CHANNEL_EXISTS'];}do{$id='ch_'.bin2hex(random_bytes(5));}while(isset($s['channels'][$id]));$s['channels'][$id]=['id'=>$id,'name'=>$name,'permanent'=>false,'createdAt'=>$now,'createdBy'=>$creator,'active'=>null,'requests'=>[]];self::bump($s);return['ok'=>true,'channel'=>$s['channels'][$id]];}
+public static function deleteChannel(array &$s,string $id):array{if($id==='main'||!isset($s['channels'][$id]))return['ok'=>false,'error'=>'CHANNEL_NOT_DELETABLE'];unset($s['channels'][$id]);foreach($s['participants'] as &$p)if(($p['channelId']??'')===$id)$p['channelId']='main';unset($p);self::bump($s);return['ok'=>true];}
+public static function replaceChannel(array &$s,array $c):void{$s['channels'][$c['id']]=$c;self::bump($s);}
+public static function bump(array &$s):void{$s['version']=(int)($s['version']??0)+1;}
+public static function publicState(array $s):array{$channels=[];foreach($s['channels'] as $id=>$c)$channels[$id]=['id'=>$c['id'],'name'=>$c['name'],'permanent'=>(bool)$c['permanent'],'createdAt'=>$c['createdAt'],'active'=>$c['active'],'requests'=>$c['requests']];$participants=array_values(array_map(fn($p)=>['sessionId'=>$p['sessionId'],'name'=>$p['name'],'role'=>$p['role'],'channelId'=>$p['channelId']],$s['participants']));return['version'=>$s['version'],'channels'=>$channels,'participants'=>$participants];}
+}
