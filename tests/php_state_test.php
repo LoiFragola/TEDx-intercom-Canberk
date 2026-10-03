@@ -1,0 +1,4 @@
+<?php
+require_once __DIR__.'/../server/IntercomState.php';
+function okx($c,$m){if(!$c){fwrite(STDERR,"FAIL $m\n");exit(1);}}
+$s=IntercomState::initialState();IntercomState::upsertParticipant($s,'a','Ali','member','main',1);$c=IntercomState::channel($s,'main');$c['active']=IntercomState::startSpeaking($c,$s['participants']['a'],1);IntercomState::replaceChannel($s,$c);okx(IntercomState::channel($s,'main')['active']['sessionId']==='a','active');IntercomState::cleanup($s,181);okx(IntercomState::channel($s,'main')['active']===null,'expiry');okx(!IntercomState::deleteChannel($s,'main')['ok'],'main');echo "PHP state OK\n";
