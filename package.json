@@ -2,26 +2,12 @@
   "name": "tedx-intercom",
   "version": "1.0.0",
   "private": true,
+  "description": "TEDx Mazhar Zorlu ekip içi PTT interkom PWA",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "preview": "vite preview"
+    "test": "node --test tests/*.test.mjs && php tests/php_state_test.php",
+    "check": "node tests/static-check.mjs",
+    "verify": "npm run check && node --check app.js && npm test && php -l api.php && php -l server/IntercomState.php"
   },
-  "dependencies": {
-    "lucide-react": "^0.468.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.12",
-    "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.4",
-    "jsdom": "^25.0.1",
-    "typescript": "^5.7.2",
-    "vite": "^6.0.5",
-    "vitest": "^2.1.8"
-  }
+  "engines": { "node": ">=20" }
 }
